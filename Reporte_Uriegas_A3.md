@@ -477,7 +477,7 @@ dwt(modelo, alternative = "two.sided")
 ```
 
     ##  lag Autocorrelation D-W Statistic p-value
-    ##    1      0.02867262      1.913997    0.75
+    ##    1      0.02867262      1.913997   0.788
     ##  Alternative hypothesis: rho != 0
 
 Se observa que no hay evidenia de ello ya que el p-value es de 0.8
@@ -579,3 +579,226 @@ head(datos, 4)
     ## 2  950    1016      duras
     ## 3 1050    1125      duras
     ## 4  350     239      duras
+
+Se aplica la misma metodologia que en el método pasado. Primero se
+analiza la correlación entre las variables.
+
+``` r
+datos$tipo_tapas <- as.factor(datos$tipo_tapas)
+pairs(x = datos)
+```
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-22-1.png)
+Visualmente en la gráfica se observa que hay crrelación entre peso y el
+volúmen. Por otra parte, haciendo una prueba de correlación de tipo
+pearson:
+
+``` r
+cor.test(datos$peso, datos$volumen, method = "pearson")
+```
+
+    ## 
+    ##  Pearson's product-moment correlation
+    ## 
+    ## data:  datos$peso and datos$volumen
+    ## t = 7.271, df = 13, p-value = 6.262e-06
+    ## alternative hypothesis: true correlation is not equal to 0
+    ## 95 percent confidence interval:
+    ##  0.7090393 0.9651979
+    ## sample estimates:
+    ##       cor 
+    ## 0.8958988
+
+Se tiene que también hay signficancia entre la correlación de la
+variable dependiente y estas 2 variables. Por último, el modelo de velas
+muestra lo siguiente:
+
+``` r
+ggplot(data = datos, mapping=aes(x = tipo_tapas, y = peso, color=tipo_tapas)) +
+geom_boxplot() +
+geom_jitter(width = 0.1) +
+theme_bw() + theme(legend.position = "none")
+```
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-24-1.png)
+Lo que muestra es que la variable tipo de tapa influye en la variable
+peso, lo que hay que tener en cuenta a la hora de crear el modelo ya que
+existiria correlación entre las variables independientes.
+
+Creando el modelo se tiene:
+
+``` r
+modelo <- lm(peso ~ volumen + tipo_tapas, data = datos)
+summary(modelo)
+```
+
+    ## 
+    ## Call:
+    ## lm(formula = peso ~ volumen + tipo_tapas, data = datos)
+    ## 
+    ## Residuals:
+    ##     Min      1Q  Median      3Q     Max 
+    ## -110.10  -32.32  -16.10   28.93  210.95 
+    ## 
+    ## Coefficients:
+    ##                  Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept)      13.91557   59.45408   0.234 0.818887    
+    ## volumen           0.71795    0.06153  11.669  6.6e-08 ***
+    ## tipo_tapasduras 184.04727   40.49420   4.545 0.000672 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 78.2 on 12 degrees of freedom
+    ## Multiple R-squared:  0.9275, Adjusted R-squared:  0.9154 
+    ## F-statistic: 76.73 on 2 and 12 DF,  p-value: 1.455e-07
+
+En este caso el p-value es mayor al del ejemplo mayor, pero aún así
+tiene relevancia.
+
+Ahora, elijiendo los predictores (variables independientes) se pueden
+aplicar los mismos modelos del ejemplo 1 quedando:
+
+``` r
+library(ggplot2)
+ggplot(data = datos, aes(x = volumen, y = modelo$residuals)) +
+geom_point() +
+geom_smooth(color = "firebrick") +
+geom_hline(yintercept = 0) +
+theme_bw()
+```
+
+    ## `geom_smooth()` using method = 'loess' and formula 'y ~ x'
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-26-1.png)
+Lo que muestra que hay linealidad en el modelo, aunque disminuye al
+final al aumentar el volumen.
+
+Aplicando la gráfica Normal QQ:
+
+``` r
+qqnorm(modelo$residuals)
+qqline(modelo$residuals)
+```
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-27-1.png)
+También se observa linealidad.
+
+Nuevamente, el test Shapiro, el cual ahora también muestra linealidad
+aunque no satisface la normalidad.
+
+``` r
+shapiro.test(modelo$residuals)
+```
+
+    ## 
+    ##  Shapiro-Wilk normality test
+    ## 
+    ## data:  modelo$residuals
+    ## W = 0.85497, p-value = 0.02043
+
+Por lo anterior es mejor excluir el valor que se considera atípico, y
+volviendo a aplicar el test:
+
+``` r
+which.max(modelo$residuals)
+```
+
+    ## 13 
+    ## 13
+
+``` r
+shapiro.test(modelo$residuals[-13])
+```
+
+    ## 
+    ##  Shapiro-Wilk normality test
+    ## 
+    ## data:  modelo$residuals[-13]
+    ## W = 0.9602, p-value = 0.7263
+
+Ahora si se observa normalidad al ser el valor de p más elevado.
+
+Evaluando la variabilidad de de las constantes de los residuos se
+observa:
+
+``` r
+ggplot(data = data.frame(predict_values = predict(modelo),
+                         residuos = residuals(modelo)),
+       aes(x = predict_values, y = residuos)) +
+    geom_point() +
+    geom_smooth(color = "firebrick", se = FALSE) +
+    geom_hline(yintercept = 0) +
+    theme_bw()
+```
+
+    ## `geom_smooth()` using method = 'loess' and formula 'y ~ x'
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-30-1.png)
+
+Igualmente al hacer la prueba se observa que existe homocedasticidad:
+
+``` r
+library(lmtest)
+bptest(modelo)
+```
+
+    ## 
+    ##  studentized Breusch-Pagan test
+    ## 
+    ## data:  modelo
+    ## BP = 2.0962, df = 2, p-value = 0.3506
+
+Con la misma prueba de correlación se observa de igual manera que no
+existe correlación entre las variables:
+
+``` r
+library(car)
+dwt(modelo,alternative = "two.sided")
+```
+
+    ##  lag Autocorrelation D-W Statistic p-value
+    ##    1    0.0004221711      1.970663   0.818
+    ##  Alternative hypothesis: rho != 0
+
+Para identificar los valores atípicos se emplea el siguiente test:
+
+``` r
+library(car)
+outlierTest(modelo)
+```
+
+    ##    rstudent unadjusted p-value Bonferroni p
+    ## 13 5.126833         0.00032993     0.004949
+
+Se observa que el test devuelve la fila 13, la cual se tuvo que eliminar
+anteriormente para seguir con los test de normalidad, ahora con este
+outlier se debe saber si es influyente aplicando el siguiente código:
+
+``` r
+summary(influence.measures(modelo))
+```
+
+    ## Potentially influential observations of
+    ##   lm(formula = peso ~ volumen + tipo_tapas, data = datos) :
+    ## 
+    ##    dfb.1_ dfb.vlmn dfb.tp_t dffit   cov.r   cook.d hat  
+    ## 4  -0.16   0.18    -0.10    -0.23    1.98_*  0.02   0.36
+    ## 11  0.70  -1.26_*   0.57    -1.54_*  0.83    0.64   0.38
+    ## 13  0.31   0.67    -1.31_*   2.07_*  0.04_*  0.46   0.14
+
+Ahora graficando lo anterior.
+
+``` r
+influencePlot(modelo)
+```
+
+![](Reporte_Uriegas_A3_files/figure-markdown_github/unnamed-chunk-35-1.png)
+
+    ##       StudRes       Hat      CookD
+    ## 4  -0.3008849 0.3616894 0.01850173
+    ## 11 -1.9897106 0.3757842 0.63729788
+    ## 13  5.1268330 0.1397761 0.45819722
+
+El test revela que el dato 13 es un outlier relevente dado que se
+encuentra alejado de los demás en el mapa, aunque no se excede los
+límites para considerarlo influyente.

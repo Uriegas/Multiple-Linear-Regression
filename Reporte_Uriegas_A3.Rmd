@@ -1,8 +1,8 @@
 ---
 title: "Actividad 3"
 output: #html_document
-  md_document:
-    variant: markdown_github
+#  md_document:
+#    variant: markdown_github
 
 date: '`r format(Sys.time(), "%d %B, %Y")`'
 author:
@@ -187,3 +187,98 @@ datos <- data.frame(peso = c(800, 950, 1050, 350, 750, 600, 1075, 250, 700,
                                    "blandas", "blandas"))
 head(datos, 4)
 ```
+Se aplica la misma metodologia que en el método pasado.
+Primero se analiza la correlación entre las variables.
+```{r}
+datos$tipo_tapas <- as.factor(datos$tipo_tapas)
+pairs(x = datos)
+```
+Visualmente en la gráfica se observa que hay crrelación entre peso y el volúmen.
+Por otra parte, haciendo una prueba de correlación de tipo pearson:
+```{r}
+cor.test(datos$peso, datos$volumen, method = "pearson")
+```
+Se tiene que también hay signficancia entre la correlación de la variable dependiente y estas 2 variables.
+Por último, el modelo de velas muestra lo siguiente:
+```{r}
+ggplot(data = datos, mapping=aes(x = tipo_tapas, y = peso, color=tipo_tapas)) +
+geom_boxplot() +
+geom_jitter(width = 0.1) +
+theme_bw() + theme(legend.position = "none")
+```
+Lo que muestra es que la variable tipo de tapa influye en la variable peso, lo que hay que tener en cuenta a la hora de crear el modelo ya que existiria correlación entre las variables independientes.
+
+Creando el modelo se tiene:
+```{r}
+modelo <- lm(peso ~ volumen + tipo_tapas, data = datos)
+summary(modelo)
+```
+En este caso el p-value es mayor al del ejemplo mayor, pero aún así tiene relevancia.
+
+Ahora, elijiendo los predictores (variables independientes) se pueden aplicar los mismos modelos del ejemplo 1 quedando:
+```{r}
+library(ggplot2)
+ggplot(data = datos, aes(x = volumen, y = modelo$residuals)) +
+geom_point() +
+geom_smooth(color = "firebrick") +
+geom_hline(yintercept = 0) +
+theme_bw()
+```
+Lo que muestra que hay linealidad en el modelo, aunque disminuye al final al aumentar el volumen.
+
+Aplicando la gráfica Normal QQ:
+```{r}
+qqnorm(modelo$residuals)
+qqline(modelo$residuals)
+```
+También se observa linealidad.
+
+Nuevamente, el test Shapiro, el cual ahora también muestra linealidad aunque no satisface la normalidad.
+```{r}
+shapiro.test(modelo$residuals)
+```
+Por lo anterior es mejor excluir el valor que se considera atípico, y volviendo a aplicar el test:
+```{r}
+which.max(modelo$residuals)
+shapiro.test(modelo$residuals[-13])
+```
+Ahora si se observa normalidad al ser el valor de p más elevado.
+
+Evaluando la variabilidad de de las constantes de los residuos se observa:
+```{r}
+ggplot(data = data.frame(predict_values = predict(modelo),
+                         residuos = residuals(modelo)),
+       aes(x = predict_values, y = residuos)) +
+    geom_point() +
+    geom_smooth(color = "firebrick", se = FALSE) +
+    geom_hline(yintercept = 0) +
+    theme_bw()
+```
+
+Igualmente al hacer la prueba se observa que existe homocedasticidad:
+```{r}
+library(lmtest)
+bptest(modelo)
+```
+
+Con la misma prueba de correlación se observa de igual manera que no existe correlación entre las variables:
+```{r}
+library(car)
+dwt(modelo,alternative = "two.sided")
+```
+
+Para identificar los valores atípicos se emplea el siguiente test:
+```{r}
+library(car)
+outlierTest(modelo)
+```
+Se observa que el test devuelve la fila 13, la cual se tuvo que eliminar anteriormente para seguir con los test de normalidad, ahora con este outlier se debe saber si es influyente aplicando el siguiente código:
+```{r}
+summary(influence.measures(modelo))
+```
+Ahora graficando lo anterior.
+
+```{r}
+influencePlot(modelo)
+```
+El test revela que el dato 13 es un outlier relevente dado que se encuentra alejado de los demás en el mapa, aunque no se excede los límites para considerarlo influyente.
