@@ -10,3 +10,180 @@ author:
 ---
 
 # Regresión Lineal Multiple
+*Coeficiente de determinación:* explica que tan bueno es el modelo para predecir; técnicamente es el porcentaje de varianza de $Y$ con respecto a la varianza del modelo.
+
+Existen diferentes formas de seleccionar parámetros, el que se incluye en R y esta basado en un modelo matemático es el método paso a paso o stepwise.
+
+## Ejemplo 1
+### Problema
+Un estudio quiere generar un modelo que permita predecir la esperanza de vida media de los habitantes de una ciudad en función de diferentes variables. Se dispone de información sobre: habitantes, analfabetismo, ingresos, esperanza de vida, asesinatos, universitarios, heladas, área y densidad poblacional.
+
+Primero se cargan los datos y se renombran para las columnas dado que tiene nombres en ingles:
+```{r}
+library(dplyr)
+datos <- as.data.frame(state.x77)
+datos <- rename(habitantes = Population, analfabetismo = Illiteracy,
+                ingresos = Income, esp_vida = `Life Exp`, asesinatos = Murder,
+                universitarios = `HS Grad`, heladas = Frost, area = Area,
+                .data = datos)
+datos <- mutate(.data = datos, densidad_pobl = habitantes * 1000 / area)
+```
+
+Analisis de la relación entre las variables.
+```{r}
+round(cor(x = datos, method = "pearson"), 3)
+```
+El anterior código muestra una tabla de correlación entre cada variable, aún con una correlación positiva o negativa no se puede decir que las variables estan correlacionadas porque primero se debe evaluar la significancia estadística de esta relacion (p-value).
+
+Para visualizar de mejor manera lo anterior se puede graficar las sigueintes 2 figuras:
+```{r}
+library(psych)
+multi.hist(x = datos, dcol = c("blue", "red"), dlty = c("dotted", "solid"),
+           main = "")
+```
+```{r}
+library(GGally)
+ggpairs(datos, lower = list(continuous = "smooth"),
+        diag = list(continuous = "barDiag"), axisLabels = "none")
+```
+A simple vista se observa que para la esperanza de vida (Y) las variables que más correlación tienen con esta (las que más son causa de) son los asesinatos, analfabetismo y universitarios.
+
+Ahora bien, se crea el modelo de regresión lineal considerando todas las variables para predecir la experanza de vida:
+```{r}
+modelo <- lm(esp_vida ~ habitantes + ingresos + analfabetismo + asesinatos +
+               universitarios + heladas + area + densidad_pobl, data = datos )
+summary(modelo)
+```
+Se imprimen los datos y los valores t-value de cada variable, donde algunas no parecen tener mucha correlación, aún así la significancia estadística del modelo (p-value) es relevante 0.003787.
+
+El modelo que se acaba de generar cuenta con variables que en realidad no ayudan mucho a explicar la esperanza de vida, lo que busca es deshacernos de ella, pero para ello hay que establecer una metodología para saber que parámetros no son relevantes, aquí se emplea el método paso a paso:
+```{r}
+step(object = modelo, direction = "both", trace = 1)
+```
+Lo que hizó el código es evaluar el modelo dando pasos hasta llegar al modelo siguiente que es el que se considera más ideal para expresar la esperanza de vida:
+
+```{r}
+modelo <- (lm(formula = esp_vida ~ habitantes + asesinatos + universitarios +
+              heladas, data = datos))
+summary(modelo)
+```
+Al comparar este método con el visual que se realizó arriba con las gráficas se observa que las 3 variables que se mencionaron eran representativas aquí se incluyen, con la diferencia de que aquí se incluye una variable más.
+
+El intervalo de confianza muestra donde se encuentran los datos probablemente:
+```{r}
+confint(lm(formula = esp_vida ~ habitantes + asesinatos + universitarios +
+            heladas, data = datos))
+```
+Aquí se observa un intervalo bastante cerrado, lo cual es bueno.
+
+Ahora bien, es necesario evaluar que los predictores (variables independientes) de verdad estan tienen una relación lineal con la variable respuesta (esperanza de vida), para ello se grafican los residuos de cada variable independiente:
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+plot1 <- ggplot(data = datos, aes(habitantes, modelo$residuals)) +
+    geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+    theme_bw()
+plot2 <- ggplot(data = datos, aes(asesinatos, modelo$residuals)) +
+    geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+    theme_bw()
+plot3 <- ggplot(data = datos, aes(universitarios, modelo$residuals)) +
+    geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+    theme_bw()
+plot4 <- ggplot(data = datos, aes(heladas, modelo$residuals)) +
+    geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) +
+    theme_bw()
+grid.arrange(plot1, plot2, plot3, plot4)
+```
+Como se observam todos los predictores cuentan con lineadlidad a lo largo de 0.
+
+Otros test para evaluar la linealidad del modelo son el método gráfico de QQline y el test de Shapiro:
+```{r}
+qqnorm(modelo$residuals)
+qqline(modelo$residuals)
+```
+La imagen muestra linealidad entre los cuantiles teóricos y testeo.
+```{r}
+shapiro.test(modelo$residuals)
+```
+Se observa que l p-value es 0.525, por lo que el modelo es valido para linealidad.
+
+Para evaluar la homocedasticidad se puede emplear la siguiente gráfica de residuos:
+```{r}
+ggplot(data = datos, aes(modelo$fitted.values, modelo$residuals)) +
+geom_point() +
+geom_smooth(color = "firebrick", se = FALSE) +
+geom_hline(yintercept = 0) +
+theme_bw()
+```
+Igualmente se puede emplear el método de test:
+```{r}
+library(lmtest)
+bptest(modelo)
+```
+Lo cual indica que existe homocedasticidad.
+
+Por otra parte, para evaluar la correlación entre los predictores (si hay correlación es malo) se puede emplear la siguiente gráfica:
+```{r}
+library(corrplot)
+corrplot(cor(dplyr::select(datos, habitantes, asesinatos,universitarios,heladas)),
+         method = "number", tl.col = "black")
+```
+Se observa que la correlación es negativa en la mayoria de los casos, aunque lijeramente positiva en otros casos, aunque no es una correlación elevada.
+
+
+```{r}
+library(car)
+vif(modelo)
+```
+En el test de inflación de varianza tampoco se observan datos relevantes de inflación de varianza.
+
+Evaluando si existe autocorrelación:
+```{r}
+library(car)
+dwt(modelo, alternative = "two.sided")
+```
+Se observa que no hay evidenia de ello ya que el p-value es de 0.8
+
+Observando si es que existen valores atípicos:
+```{r}
+library(dplyr)
+datos$studentized_residual <- rstudent(modelo)
+ggplot(data = datos, aes(x = predict(modelo), y = abs(studentized_residual))) +
+geom_hline(yintercept = 3, color = "grey", linetype = "dashed") +
+geom_point(aes(color = ifelse(abs(studentized_residual) > 3, 'red', 'black'))) +
+scale_color_identity() +
+labs(title = "Distribución de los residuos studentized",
+     x = "predicción modelo") + 
+theme_bw() + theme(plot.title = element_text(hjust = 0.5))
+```
+Se observa que ningún dato es mayor a 3, lo que indica que no hay observaciones atípicas, esto se puede comprobar corriendo el siguiente código:
+```{r}
+which(abs(datos$studentized_residual) > 3)
+```
+Para evaluar si existe influencia entre las variables se puede emplear el siguiente resumen de un modelo de influencia:
+```{r}
+summary(influence.measures(modelo))
+```
+Lo que muestra es la influencia según diferentes metologías, para visualizar esto:
+```{r}
+influencePlot(modelo)
+```
+Aquí se observa que hay valors relevantes como el de California y Hawaii.
+
+## Ejemplo 2
+### Problema
+Se dispone de un dataset que contiene información de 30 libros. Se conoce del peso total de cada libro, el volumen que tiene y el tipo de tapas (duras o blandas). Se quiere generar un modelo lineal múltiple que permita predecir el peso de un libro en función de su volumen y del tipo de tapas.
+
+Nuevamente, primero se deben de crear o extraer los datos, en este caso se crean:
+```{r}
+datos <- data.frame(peso = c(800, 950, 1050, 350, 750, 600, 1075, 250, 700,
+                             650, 975, 350, 950, 425, 725),
+                    volumen = c(885, 1016, 1125, 239, 701, 641, 1228, 412, 953,
+                                929, 1492, 419, 1010, 595, 1034),
+                    tipo_tapas = c("duras", "duras", "duras", "duras", "duras", 
+                                   "duras", "duras", "blandas", "blandas",
+                                   "blandas", "blandas", "blandas", "blandas",
+                                   "blandas", "blandas"))
+head(datos, 4)
+```
