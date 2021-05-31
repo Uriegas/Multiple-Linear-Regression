@@ -1,0 +1,12 @@
+---
+title: "Actividad 3"
+output: #html_document
+  md_document:
+    variant: markdown_github
+
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+author:
+  - Alumno.- Jesús Eduardo Uriegas Ibarra
+---
+
+# Regresión Lineal Multiple
